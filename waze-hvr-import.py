@@ -4,7 +4,9 @@ import sys
 import os
 import re
 import ConfigParser
-CONFIGPATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "waze-hvr-import.cfg")
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+CONFIGPATH = os.path.join(HERE, "waze-hvr-import.cfg")
 
 def getConfig():
     config = ConfigParser.ConfigParser()
@@ -13,9 +15,16 @@ def getConfig():
     f.close()
     return config
 
-def executeSQL(txt, config):
+def executeSQL(txt):
     """validates sql string using command line"""
-
+    config = getConfig()
+    config = getConfig()
+    if config.get("mysql", "dbname") == "databasename":
+        print "MySQL database is not configured. Check waze-hvr-import.cfg file"
+        return
+    if config.get("mysql", "pass") == "******":
+        print "MySQL password is not configured. Check waze-hvr-import.cfg file"
+        return
     import subprocess
     mysqlcmd = ["%s/mysql" % config.get("mysql", "%spath" % os.name)]
     mysqlcmd.append("-u%s" % config.get('mysql', 'user'))
@@ -37,7 +46,6 @@ def sql_table_creator():
     sql += "rank INTEGER,\n"
     sql += "total_edits INTEGER,\n"
     sql += "segnodes_created INTEGER,\n"
-    sql += "segnodes_edited INTEGER,\n"
     sql += "segnodes_modified INTEGER,\n"
     sql += "segnodes_deleted INTEGER,\n"
     sql += "seg_split_merges INTEGER,\n"
@@ -46,25 +54,52 @@ def sql_table_creator():
     sql += "map_problems_closed INTEGER,\n"
     sql += "update_requests_closed INTEGER,\n"
     sql += "house_number_handled INTEGER,\n"
-    sql += "editing_age VARCHAR(100),\n"
-    sql += "UNIQUE INDEX date_user (date, user)\n"
+    sql += "UNIQUE INDEX date_user (date, user),\n"
+    sql += "INDEX user (user)\n"
     sql += "\n)DEFAULT CHARSET=latin1 COLLATE=latin1_general_cs"
     sql += "\nENGINE=InnoDB"
-    return sql
+    executeSQL(sql)
 
-def main():
-    config = getConfig()
-    if config.get("mysql", "dbname") == "databasename":
-        return "MySQL database is not configured. Check waze-hvr-import.cfg file"
-    if config.get("mysql", "pass") == "******":
-        return "MySQL password is not configured. Check waze-hvr-import.cfg file"
-    executeSQL(sql_table_creator(), config)
-    return True
-
-
+def cvs_importer():
+    qty = 0
+    for root, dirnames, filenames in os.walk(HERE):
+        for fname in filenames:
+            if not fname.endswith(".csv"):
+                continue
+            print "importing", fname
+            f = open(fname, "r")
+            if not f:
+                print "file %s not found" % fname
+                continue
+            linenr = -1
+            sql = ""
+            for row in f.readlines():
+                linenr += 1
+                if linenr == 0:
+                    continue
+                the_date = "%s/%s/%s" % (fname.split("-")[1], fname.split("-")[2], fname.split("-")[3])
+                line = row.split(",")
+                fieldnames = ["user", "rank", "total_edits"]
+                fieldnames += ["segnodes_created", "segnodes_modified", "segnodes_deleted"]
+                fieldnames += ["seg_split_merges", "venues_handled", "road_closures_handled"]
+                fieldnames += ["map_problems_closed", "update_requests_closed", "house_number_handled"]
+                sql = "INSERT INTO waze_hvr (date,%s) VALUES (" % ",".join(fieldnames)
+                values = ["'%s'" % the_date]
+                for idx, fn in enumerate(fieldnames):
+                    if fn == "user":
+                        values.append("'%s'" % line[idx])
+                    else:
+                        values.append(line[idx])
+                sql += ",".join(values) + ");\n"
+            f.close()
+            if sql:
+                executeSQL(sql)
+                qty += 1
+    if qty:
+        executeSQL("COMMIT;")
 
 
 if __name__ == '__main__':
-    res = main()
-    if not res: print res
+    sql_table_creator()
+    cvs_importer()
     sys.exit(0)
