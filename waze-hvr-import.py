@@ -62,12 +62,12 @@ def sql_table_creator():
 
 def cvs_importer():
     qty = 0
-    for root, dirnames, filenames in os.walk(HERE):
+    for root, dirnames, filenames in os.walk(os.path.join(HERE, "import")):
         for fname in filenames:
             if not fname.endswith(".csv"):
                 continue
             print "importing", fname
-            f = open(fname, "r")
+            f = open(os.path.join(HERE, "import", fname), "r")
             if not f:
                 print "file %s not found" % fname
                 continue
