@@ -61,7 +61,6 @@ def sql_table_creator():
     executeSQL(sql)
 
 def cvs_importer():
-    qty = 0
     for root, dirnames, filenames in os.walk(os.path.join(HERE, "import")):
         for fname in filenames:
             if not fname.endswith(".csv"):
@@ -72,7 +71,6 @@ def cvs_importer():
                 print "file %s not found" % fname
                 continue
             linenr = -1
-            sql = ""
             for row in f.readlines():
                 linenr += 1
                 if linenr == 0:
@@ -91,12 +89,8 @@ def cvs_importer():
                     else:
                         values.append(line[idx])
                 sql += ",".join(values) + ");\n"
-            f.close()
-            if sql:
                 executeSQL(sql)
-                qty += 1
-    if qty:
-        executeSQL("COMMIT;")
+            f.close()
 
 
 if __name__ == '__main__':
