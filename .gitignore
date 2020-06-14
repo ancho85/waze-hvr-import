@@ -127,6 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-waze-hvr-import.cfg
+config.cfg
 imported/*
+import/*
 *.csv

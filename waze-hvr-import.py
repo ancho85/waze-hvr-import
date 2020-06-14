@@ -6,7 +6,7 @@ import re
 import ConfigParser
 
 HERE = os.path.dirname(os.path.realpath(__file__))
-CONFIGPATH = os.path.join(HERE, "waze-hvr-import.cfg")
+CONFIGPATH = os.path.join(HERE, "config.cfg")
 
 def getConfig():
     config = ConfigParser.ConfigParser()
