@@ -4,6 +4,7 @@ import sys
 import os
 import re
 import ConfigParser
+import shutil
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 CONFIGPATH = os.path.join(HERE, "config.cfg")
@@ -36,7 +37,7 @@ def executeSQL(txt):
     mysqlcmd.append("--batch")
     mysqlcmd.append("--execute")
     mysqlcmd.append("%s" % txt)
-    subprocess.Popen(mysqlcmd) # , stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    subprocess.call(mysqlcmd) # , stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def sql_table_creator():
     sql = "CREATE TABLE IF NOT EXISTS waze_hvr(\n"
@@ -60,40 +61,58 @@ def sql_table_creator():
     sql += "\nENGINE=InnoDB"
     executeSQL(sql)
 
-def cvs_importer():
-    for root, dirnames, filenames in os.walk(os.path.join(HERE, "import")):
+def check_dirs(dirname):
+    path = os.path.join(HERE, dirname)
+    if not os.path.isdir(path):
+        os.makedirs(path)
+
+def get_csv_files(dirname):
+    for root, dirnames, filenames in os.walk(os.path.join(HERE, dirname)):
         for fname in filenames:
             if not fname.endswith(".csv"):
                 continue
-            print "importing", fname
-            f = open(os.path.join(HERE, "import", fname), "r")
-            if not f:
-                print "file %s not found" % fname
+            yield fname
+
+def cvs_importer():
+    check_dirs("import")
+    for fname in get_csv_files("import"):
+        print "importing", fname
+        f = open(os.path.join(HERE, "import", fname), "r")
+        if not f:
+            print "file %s not found" % fname
+            continue
+        linenr = -1
+        for row in f.readlines():
+            linenr += 1
+            if linenr == 0:
                 continue
-            linenr = -1
-            for row in f.readlines():
-                linenr += 1
-                if linenr == 0:
-                    continue
-                the_date = "%s/%s/%s" % (fname.split("-")[1], fname.split("-")[2], fname.split("-")[3])
-                line = row.split(",")
-                fieldnames = ["user", "rank", "total_edits"]
-                fieldnames += ["segnodes_created", "segnodes_modified", "segnodes_deleted"]
-                fieldnames += ["seg_split_merges", "venues_handled", "road_closures_handled"]
-                fieldnames += ["map_problems_closed", "update_requests_closed", "house_number_handled"]
-                sql = "INSERT INTO waze_hvr (date,%s) VALUES (" % ",".join(fieldnames)
-                values = ["'%s'" % the_date]
-                for idx, fn in enumerate(fieldnames):
-                    if fn == "user":
-                        values.append("'%s'" % line[idx])
-                    else:
-                        values.append(line[idx])
-                sql += ",".join(values) + ");\n"
-                executeSQL(sql)
-            f.close()
+            the_date = "%s/%s/%s" % (fname.split("-")[1], fname.split("-")[2], fname.split("-")[3])
+            line = row.split(",")
+            fieldnames = ["user", "rank", "total_edits"]
+            fieldnames += ["segnodes_created", "segnodes_modified", "segnodes_deleted"]
+            fieldnames += ["seg_split_merges", "venues_handled", "road_closures_handled"]
+            fieldnames += ["map_problems_closed", "update_requests_closed", "house_number_handled"]
+            sql = "INSERT INTO waze_hvr (date,%s) VALUES (" % ",".join(fieldnames)
+            values = ["'%s'" % the_date]
+            for idx, fn in enumerate(fieldnames):
+                if fn == "user":
+                    values.append("'%s'" % line[idx])
+                else:
+                    values.append(line[idx])
+            sql += ",".join(values) + ");\n"
+            executeSQL(sql)
+        f.close()
+
+def cvs_mover():
+    check_dirs("imported")
+    for fname in get_csv_files("import"):
+        dest_file = os.path.join(HERE, "imported", fname)
+        if not os.path.isfile(dest_file):
+            shutil.move(os.path.join(HERE, "import", fname), os.path.join(HERE, "imported"))
 
 
 if __name__ == '__main__':
     sql_table_creator()
     cvs_importer()
+    cvs_mover()
     sys.exit(0)
