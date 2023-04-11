@@ -5,6 +5,7 @@ import os
 import re
 import ConfigParser
 import shutil
+import datetime
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 CONFIGPATH = os.path.join(HERE, "config.cfg")
@@ -74,41 +75,53 @@ def get_csv_files(dirname):
             yield fname
 
 def cvs_importer():
-    check_dirs("import")
-    for fname in get_csv_files("import"):
-        print "importing", fname
-        f = open(os.path.join(HERE, "import", fname), "r")
-        if not f:
-            print "file %s not found" % fname
+    if len(sys.argv):
+        fname = os.path.split(sys.argv[1])[1]
+        f = open(sys.argv[1], "r")
+        import_file(f, fname)
+    else:
+        check_dirs("import")
+        for fname in get_csv_files("import"):
+            print "importing", fname
+            f = open(os.path.join(HERE, "import", fname), "r")
+            import_file(f, fname)
+
+def import_file(f, fname):
+    if not f:
+        print "file %s not found" % fname
+        return
+    #the_date = "%s/%s/%s" % (fname.split("-")[1], fname.split("-")[2], fname.split("-")[3])
+    the_date = datetime.datetime.strptime(fname.split("-")[1], '%a %b %d %H_%M_%S %Z %Y').strftime('%Y/%m/%d')
+    linenr = -1
+    for row in f.readlines():
+        linenr += 1
+        if linenr == 0:
             continue
-        linenr = -1
-        for row in f.readlines():
-            linenr += 1
-            if linenr == 0:
-                continue
-            the_date = "%s/%s/%s" % (fname.split("-")[1], fname.split("-")[2], fname.split("-")[3])
-            line = row.split(",")
-            fieldnames = ["user", "rank", "total_edits"]
-            fieldnames += ["segnodes_created", "segnodes_modified", "segnodes_deleted"]
-            fieldnames += ["seg_split_merges", "venues_handled", "road_closures_handled"]
-            fieldnames += ["map_problems_closed", "update_requests_closed", "house_number_handled"]
-            sql = "INSERT INTO waze_hvr (date,%s) VALUES (" % ",".join(fieldnames)
-            values = ["'%s'" % the_date]
-            for idx, fn in enumerate(fieldnames):
-                if fn == "user":
-                    values.append("'%s'" % line[idx])
-                else:
-                    values.append(line[idx])
-            sql += ",".join(values) + ");\n"
-            executeSQL(sql)
-        f.close()
+        line = row.split(",")
+        fieldnames = ["user", "rank", "total_edits"]
+        fieldnames += ["segnodes_created", "segnodes_modified", "segnodes_deleted"]
+        fieldnames += ["seg_split_merges", "venues_handled", "road_closures_handled"]
+        fieldnames += ["map_problems_closed", "update_requests_closed", "house_number_handled"]
+        sql = "INSERT INTO waze_hvr (date,%s) VALUES (" % ",".join(fieldnames)
+        values = ["'%s'" % the_date]
+        for idx, fn in enumerate(fieldnames):
+            if fn == "user":
+                values.append("'%s'" % line[idx])
+            else:
+                values.append(line[idx])
+        sql += ",".join(values) + ");\n"
+        executeSQL(sql)
+    f.close()
 
 def cvs_mover():
-    check_dirs("imported")
-    for fname in get_csv_files("import"):
-        dest_file = os.path.join(HERE, "imported", fname)
-        if not os.path.isfile(dest_file):
-            shutil.move(os.path.join(HERE, "import", fname), os.path.join(HERE, "imported"))
+    if len(sys.argv):
+        shutil.move(sys.argv[1], os.path.join(HERE, "imported"))
+    else:
+        check_dirs("imported")
+        for fname in get_csv_files("import"):
+            dest_file = os.path.join(HERE, "imported", fname)
+            if not os.path.isfile(dest_file):
+                shutil.move(os.path.join(HERE, "import", fname), os.path.join(HERE, "imported"))
 
 
 if __name__ == '__main__':
